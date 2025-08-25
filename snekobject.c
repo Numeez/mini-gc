@@ -3,6 +3,63 @@
 #include <string.h>
 
 
+void refcount_dec(snek_object_t *obj) {
+    if (obj!=NULL){
+         obj->reference_count--;
+        if (obj->reference_count==0){
+            refcount_free(obj);
+        }
+    }
+}
+
+void refcount_free(snek_object_t *obj) {
+    switch (obj->kind)
+    {
+    case INTEGER:
+        free(obj);
+        return;
+
+    case FLOAT:
+        free(obj);
+        return ;
+    case STRING:{
+        free(obj->data.v_string);
+        free(obj);
+        return ;
+    }
+    case VECTOR3:{
+        refcount_dec(obj->data.v_vector3.x);
+        refcount_dec(obj->data.v_vector3.y);
+        refcount_dec(obj->data.v_vector3.z);
+        break;
+    }
+    case ARRAY:{
+        for(int i = 0; i<obj->data.v_array.size;++i){
+           refcount_dec(obj->data.v_array.elements[i]);
+        }
+        free(obj->data.v_array.elements);
+    }
+    
+    default:
+        break;
+    }   
+}
+
+void refcount_inc(snek_object_t *obj) {
+    if (obj!=NULL){
+    obj->reference_count++;
+    }
+}
+
+snek_object_t *_new_snek_object() {
+    snek_object_t* snek_object = (snek_object_t*)malloc(sizeof(snek_object_t));
+    if (snek_object==NULL){
+        return NULL;
+    }
+    snek_object->reference_count = 1;   
+    return snek_object; 
+}
+
 snek_object_t *snek_add(snek_object_t *a, snek_object_t *b) {
     if (a==NULL || b==NULL){
         return NULL;
@@ -115,7 +172,7 @@ int snek_length(snek_object_t* obj){
 }
 
 snek_object_t *new_snek_integer(int value){
-    snek_object_t* snek_object  = (snek_object_t*)malloc(sizeof(snek_object_t));
+    snek_object_t* snek_object  = _new_snek_object();
     if (snek_object==NULL){
         return NULL;
     }
@@ -126,7 +183,7 @@ snek_object_t *new_snek_integer(int value){
 }
 
 snek_object_t *new_snek_float(float value){
-    snek_object_t* snek_object  = (snek_object_t*)malloc(sizeof(snek_object_t));
+    snek_object_t* snek_object  = _new_snek_object();
     if (snek_object==NULL){
         return NULL;
     }
@@ -136,7 +193,7 @@ snek_object_t *new_snek_float(float value){
 
 }
 snek_object_t *new_snek_string(char* value){
-    snek_object_t* snek_object  = (snek_object_t*)malloc(sizeof(snek_object_t));
+    snek_object_t* snek_object  = _new_snek_object();
     if (snek_object==NULL){
         return NULL;
     }
@@ -157,7 +214,10 @@ snek_object_t *new_snek_vector3( snek_object_t *x, snek_object_t *y, snek_object
     if (x==NULL || y==NULL || z==NULL){
         return NULL;
     }
-    snek_object_t* snek_object  = (snek_object_t*)malloc(sizeof(snek_object_t));
+    refcount_inc(x);
+    refcount_inc(y);
+    refcount_inc(z);
+    snek_object_t* snek_object  = _new_snek_object();
     if (snek_object==NULL){
         return NULL;
     }
@@ -173,7 +233,7 @@ snek_object_t *new_snek_vector3( snek_object_t *x, snek_object_t *y, snek_object
 }
 
 snek_object_t *new_snek_array(size_t size){
-    snek_object_t* snek_object  = (snek_object_t*)malloc(sizeof(snek_object_t));
+    snek_object_t* snek_object  = _new_snek_object();
     if (snek_object==NULL){
         return NULL;
     }
@@ -202,6 +262,10 @@ bool snek_array_set(snek_object_t *array, size_t index, snek_object_t *value){
     }
     if (index>=array->data.v_array.size){
         return false;
+    }
+    refcount_inc(value);
+    if (array->data.v_array.elements[index]!=NULL){
+        refcount_dec(array->data.v_array.elements[index]);
     }
     array->data.v_array.elements[index] = value;
     return true;

@@ -1,116 +1,131 @@
-#include <stdlib.h>
 #include "munit/munit.h"
 #include "snekobject.h"
+#include <stdlib.h>
 
-// ---------- TEST FUNCTIONS ----------
+// ---------------------------
+// Tests
+// ---------------------------
 
-static MunitResult test_integer_add(const MunitParameter params[], void* fixture) {
-    snek_object_t *one = new_snek_integer(1);
-    snek_object_t *three = new_snek_integer(3);
-    snek_object_t *four = snek_add(one, three);
+static MunitResult test_integer_refcount(const MunitParameter params[], void* data) {
+    (void) params; (void) data;
 
-    munit_assert_not_null(four);
-    munit_assert_int(four->kind, ==, INTEGER);
-    munit_assert_int(four->data.v_int, ==, 4);
+    snek_object_t* obj = new_snek_integer(42);
+    munit_assert_int(obj->reference_count, ==, 1);
 
-    free(one);
-    free(three);
-    free(four);
+    refcount_inc(obj);
+    munit_assert_int(obj->reference_count, ==, 2);
+
+    refcount_dec(obj);
+    munit_assert_int(obj->reference_count, ==, 1);
+
+    refcount_dec(obj);
+    // obj is freed, cannot check reference_count anymore
+
     return MUNIT_OK;
 }
 
-static MunitResult test_float_add(const MunitParameter params[], void* fixture) {
-    snek_object_t *one = new_snek_float(1.5);
-    snek_object_t *three = new_snek_float(3.5);
-    snek_object_t *five = snek_add(one, three);
+static MunitResult test_float_refcount(const MunitParameter params[], void* data) {
+    (void) params; (void) data;
 
-    munit_assert_not_null(five);
-    munit_assert_int(five->kind, ==, FLOAT);
-    munit_assert_float(five->data.v_float, ==, 5.0);
+    snek_object_t* obj = new_snek_float(3.14);
+    munit_assert_int(obj->reference_count, ==, 1);
 
-    free(one);
-    free(three);
-    free(five);
+    refcount_inc(obj);
+    munit_assert_int(obj->reference_count, ==, 2);
+
+    refcount_dec(obj);
+    munit_assert_int(obj->reference_count, ==, 1);
+
+    refcount_dec(obj);
+
     return MUNIT_OK;
 }
 
-static MunitResult test_string_add(const MunitParameter params[], void* fixture) {
-    snek_object_t *hello = new_snek_string("hello");
-    snek_object_t *world = new_snek_string(", world");
-    snek_object_t *greeting = snek_add(hello, world);
+static MunitResult test_string_refcount(const MunitParameter params[], void* data) {
+    (void) params; (void) data;
 
-    munit_assert_not_null(greeting);
-    munit_assert_int(greeting->kind, ==, STRING);
-    munit_assert_string_equal(greeting->data.v_string, "hello, world");
+    snek_object_t* obj = new_snek_string("Hello");
+    munit_assert_int(obj->reference_count, ==, 1);
 
-    free(hello->data.v_string);
-    free(hello);
-    free(world->data.v_string);
-    free(world);
-    free(greeting->data.v_string);
-    free(greeting);
+    refcount_inc(obj);
+    munit_assert_int(obj->reference_count, ==, 2);
+
+    refcount_dec(obj);
+    munit_assert_int(obj->reference_count, ==, 1);
+
+    refcount_dec(obj);
+
     return MUNIT_OK;
 }
 
-static MunitResult test_vector3_add(const MunitParameter params[], void* fixture) {
-    snek_object_t *v1 = new_snek_vector3(new_snek_float(1.0), new_snek_float(2.0), new_snek_float(3.0));
-    snek_object_t *v2 = new_snek_vector3(new_snek_float(4.0), new_snek_float(5.0), new_snek_float(6.0));
+static MunitResult test_array_refcount(const MunitParameter params[], void* data) {
+    (void) params; (void) data;
 
-    snek_object_t *result = snek_add(v1, v2);
+    snek_object_t* a = new_snek_integer(1);
+    snek_object_t* b = new_snek_integer(2);
+    snek_object_t* arr = new_snek_array(2);
 
-    munit_assert_not_null(result);
-    munit_assert_int(result->kind, ==, VECTOR3);
-    munit_assert_float(result->data.v_vector3.x->data.v_float, ==, 5.0);
-    munit_assert_float(result->data.v_vector3.y->data.v_float, ==, 7.0);
-    munit_assert_float(result->data.v_vector3.z->data.v_float, ==, 9.0);
+    snek_array_set(arr, 0, a);
+    snek_array_set(arr, 1, b);
 
-    free(v1->data.v_vector3.x); free(v1->data.v_vector3.y); free(v1->data.v_vector3.z); free(v1);
-    free(v2->data.v_vector3.x); free(v2->data.v_vector3.y); free(v2->data.v_vector3.z); free(v2);
-    free(result->data.v_vector3.x); free(result->data.v_vector3.y); free(result->data.v_vector3.z); free(result);
+    munit_assert_int(a->reference_count, ==, 2);
+    munit_assert_int(b->reference_count, ==, 2);
+
+    refcount_dec(a);
+    munit_assert_int(a->reference_count, ==, 1);
+
+    snek_object_t* c = new_snek_integer(3);
+    snek_array_set(arr, 0, c); // replaces `a`, should decrement `a`
+    munit_assert_int(c->reference_count, ==, 2);
+
+    refcount_dec(b);
+    refcount_dec(c);
+    refcount_dec(arr);
+
     return MUNIT_OK;
 }
 
-static MunitResult test_array_add(const MunitParameter params[], void* fixture) {
-    snek_object_t *one = new_snek_integer(1);
-    snek_object_t *ones = new_snek_array(2);
-    snek_array_set(ones, 0, one);
-    snek_array_set(ones, 1, one);
+static MunitResult test_vector3_refcount(const MunitParameter params[], void* data) {
+    (void) params; (void) data;
 
-    snek_object_t *hi = new_snek_string("hi");
-    snek_object_t *hellos = new_snek_array(3);
-    snek_array_set(hellos, 0, hi);
-    snek_array_set(hellos, 1, hi);
-    snek_array_set(hellos, 2, hi);
+    snek_object_t* x = new_snek_integer(1);
+    snek_object_t* y = new_snek_integer(2);
+    snek_object_t* z = new_snek_integer(3);
 
-    snek_object_t *result = snek_add(ones, hellos);
+    snek_object_t* vec = new_snek_vector3(x, y, z);
+    munit_assert_int(x->reference_count, ==, 2);
+    munit_assert_int(y->reference_count, ==, 2);
+    munit_assert_int(z->reference_count, ==, 2);
 
-    munit_assert_not_null(result);
-    munit_assert_int(result->kind, ==, ARRAY);
-    munit_assert_int(snek_length(result), ==, 5);
+    refcount_dec(x);
+    munit_assert_int(x->reference_count, ==, 1);
 
-    free(one); free(ones->data.v_array.elements); free(ones);
-    free(hi->data.v_string); free(hi); free(hellos->data.v_array.elements); free(hellos);
-    free(result->data.v_array.elements); free(result);
+    refcount_dec(vec); // decrements vector refs
+    munit_assert_int(x->reference_count, ==, 0);
+    munit_assert_int(y->reference_count, ==, 1);
+    munit_assert_int(z->reference_count, ==, 1);
+
+    refcount_dec(y);
+    refcount_dec(z);
+
     return MUNIT_OK;
 }
 
-// ---------- TEST SUITE ----------
+// ---------------------------
+// Test suite
+// ---------------------------
 
-static  MunitTest tests[] = {
-    {"/integer", test_integer_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {"/float", test_float_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {"/string", test_string_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {"/vector3", test_vector3_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {"/array", test_array_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
-    {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
+static MunitTest tests[] = {
+    { "/integer_refcount", test_integer_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+    { "/float_refcount", test_float_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+    { "/string_refcount", test_string_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+    { "/array_refcount", test_array_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+    { "/vector3_refcount", test_vector3_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+    { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
 };
 
-static  MunitSuite suite = {
-    "snek-add",
-    tests,
-    NULL,
-    1,
-    MUNIT_SUITE_OPTION_NONE
+static const MunitSuite suite = {
+    "refcount", tests, NULL, 1, MUNIT_SUITE_OPTION_NONE
 };
 
 int main(int argc, char* argv[]) {
