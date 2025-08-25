@@ -1,80 +1,118 @@
 #include <stdlib.h>
-#include <string.h>
 #include "munit/munit.h"
 #include "snekobject.h"
 
-// --- Test functions ---
+// ---------- TEST FUNCTIONS ----------
 
-MunitResult test_integer(const MunitParameter params[], void* data) {
-    snek_object_t *obj = new_snek_integer(42);
-    munit_assert_int(snek_length(obj), ==, 1);
-    free(obj);
+static MunitResult test_integer_add(const MunitParameter params[], void* fixture) {
+    snek_object_t *one = new_snek_integer(1);
+    snek_object_t *three = new_snek_integer(3);
+    snek_object_t *four = snek_add(one, three);
+
+    munit_assert_not_null(four);
+    munit_assert_int(four->kind, ==, INTEGER);
+    munit_assert_int(four->data.v_int, ==, 4);
+
+    free(one);
+    free(three);
+    free(four);
     return MUNIT_OK;
 }
 
-MunitResult test_float(const MunitParameter params[], void* data) {
-    snek_object_t *obj = new_snek_float(3.14f);
-    munit_assert_int(snek_length(obj), ==, 1);
-    free(obj);
+static MunitResult test_float_add(const MunitParameter params[], void* fixture) {
+    snek_object_t *one = new_snek_float(1.5);
+    snek_object_t *three = new_snek_float(3.5);
+    snek_object_t *five = snek_add(one, three);
+
+    munit_assert_not_null(five);
+    munit_assert_int(five->kind, ==, FLOAT);
+    munit_assert_float(five->data.v_float, ==, 5.0);
+
+    free(one);
+    free(three);
+    free(five);
     return MUNIT_OK;
 }
 
-MunitResult test_string(const MunitParameter params[], void* data) {
-    snek_object_t *shorter = new_snek_string("hello");
-    munit_assert_int(snek_length(shorter), ==, 5);
+static MunitResult test_string_add(const MunitParameter params[], void* fixture) {
+    snek_object_t *hello = new_snek_string("hello");
+    snek_object_t *world = new_snek_string(", world");
+    snek_object_t *greeting = snek_add(hello, world);
 
-    snek_object_t *longer = new_snek_string("hello, world");
-    munit_assert_int(snek_length(longer), ==, (int)strlen("hello, world"));
+    munit_assert_not_null(greeting);
+    munit_assert_int(greeting->kind, ==, STRING);
+    munit_assert_string_equal(greeting->data.v_string, "hello, world");
 
-    free(shorter->data.v_string);
-    free(shorter);
-    free(longer->data.v_string);
-    free(longer);
+    free(hello->data.v_string);
+    free(hello);
+    free(world->data.v_string);
+    free(world);
+    free(greeting->data.v_string);
+    free(greeting);
     return MUNIT_OK;
 }
 
-MunitResult test_vector3(const MunitParameter params[], void* data) {
-    snek_object_t *i = new_snek_integer(1);
-    snek_object_t *vec = new_snek_vector3(i, i, i);
+static MunitResult test_vector3_add(const MunitParameter params[], void* fixture) {
+    snek_object_t *v1 = new_snek_vector3(new_snek_float(1.0), new_snek_float(2.0), new_snek_float(3.0));
+    snek_object_t *v2 = new_snek_vector3(new_snek_float(4.0), new_snek_float(5.0), new_snek_float(6.0));
 
-    munit_assert_int(snek_length(vec), ==, 3);
+    snek_object_t *result = snek_add(v1, v2);
 
-    free(i);
-    free(vec);
+    munit_assert_not_null(result);
+    munit_assert_int(result->kind, ==, VECTOR3);
+    munit_assert_float(result->data.v_vector3.x->data.v_float, ==, 5.0);
+    munit_assert_float(result->data.v_vector3.y->data.v_float, ==, 7.0);
+    munit_assert_float(result->data.v_vector3.z->data.v_float, ==, 9.0);
+
+    free(v1->data.v_vector3.x); free(v1->data.v_vector3.y); free(v1->data.v_vector3.z); free(v1);
+    free(v2->data.v_vector3.x); free(v2->data.v_vector3.y); free(v2->data.v_vector3.z); free(v2);
+    free(result->data.v_vector3.x); free(result->data.v_vector3.y); free(result->data.v_vector3.z); free(result);
     return MUNIT_OK;
 }
 
-MunitResult test_array(const MunitParameter params[], void* data) {
-    snek_object_t *i = new_snek_integer(1);
-    snek_object_t *arr = new_snek_array(4);
+static MunitResult test_array_add(const MunitParameter params[], void* fixture) {
+    snek_object_t *one = new_snek_integer(1);
+    snek_object_t *ones = new_snek_array(2);
+    snek_array_set(ones, 0, one);
+    snek_array_set(ones, 1, one);
 
-    munit_assert_true(snek_array_set(arr, 0, i));
-    munit_assert_true(snek_array_set(arr, 1, i));
-    munit_assert_true(snek_array_set(arr, 2, i));
+    snek_object_t *hi = new_snek_string("hi");
+    snek_object_t *hellos = new_snek_array(3);
+    snek_array_set(hellos, 0, hi);
+    snek_array_set(hellos, 1, hi);
+    snek_array_set(hellos, 2, hi);
 
-    munit_assert_int(snek_length(arr), ==, 4);
+    snek_object_t *result = snek_add(ones, hellos);
 
-    free(i);
-    free(arr->data.v_array.elements);
-    free(arr);
+    munit_assert_not_null(result);
+    munit_assert_int(result->kind, ==, ARRAY);
+    munit_assert_int(snek_length(result), ==, 5);
+
+    free(one); free(ones->data.v_array.elements); free(ones);
+    free(hi->data.v_string); free(hi); free(hellos->data.v_array.elements); free(hellos);
+    free(result->data.v_array.elements); free(result);
     return MUNIT_OK;
 }
 
-// --- Main function ---
+// ---------- TEST SUITE ----------
+
+static  MunitTest tests[] = {
+    {"/integer", test_integer_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/float", test_float_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/string", test_string_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/vector3", test_vector3_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {"/array", test_array_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}
+};
+
+static  MunitSuite suite = {
+    "snek-add",
+    tests,
+    NULL,
+    1,
+    MUNIT_SUITE_OPTION_NONE
+};
 
 int main(int argc, char* argv[]) {
-     MunitTest tests[] = {
-        { "/integer", test_integer, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        { "/float", test_float, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        { "/string", test_string, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        { "/vector3", test_vector3, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        { "/array", test_array, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
-    };
-
-    const MunitSuite suite = {
-        "/snek-length", tests, NULL, 1, MUNIT_SUITE_OPTION_NONE
-    };
-
     return munit_suite_main(&suite, NULL, argc, argv);
 }

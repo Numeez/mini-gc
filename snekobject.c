@@ -2,24 +2,116 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+snek_object_t *snek_add(snek_object_t *a, snek_object_t *b) {
+    if (a==NULL || b==NULL){
+        return NULL;
+    }
+    if (a->kind==INTEGER){
+        switch (b->kind)
+        {
+        case INTEGER:
+            return new_snek_integer(a->data.v_int+b->data.v_int);
+        case FLOAT:
+            return new_snek_float((float)a->data.v_int+b->data.v_float);
+        
+        default:
+            return NULL;
+        }
+    }
+    if (a->kind==FLOAT){
+        switch (b->kind)
+        {
+        case INTEGER:
+            return new_snek_float(a->data.v_float+(float)b->data.v_int);
+        case FLOAT:
+            return new_snek_float(a->data.v_float+b->data.v_float);
+        
+        default:
+            return NULL;
+        }
+    }
+    if (a->kind==STRING){
+        switch (b->kind)
+        {
+        case STRING:{
+        char* string_a = a->data.v_string;
+        char* string_b = b->data.v_string;
+        size_t result_length = strlen(string_a)+strlen(string_b)+1;
+        char* temp_string = calloc(result_length,sizeof(char));
+        strcat(temp_string,string_a);
+        strcat(temp_string,string_b);
+        snek_object_t* obj = new_snek_string(temp_string);
+        free(temp_string);
+        return obj;
+        }
+        default:
+            return NULL;
+        }
+    }
+
+    if (a->kind==VECTOR3){
+        switch (b->kind)
+        {
+        case VECTOR3:{
+            snek_object_t* a_x = a->data.v_vector3.x;
+            snek_object_t* a_y =a->data.v_vector3.y;
+            snek_object_t* a_z =a->data.v_vector3.z;
+            snek_object_t* b_x =b->data.v_vector3.x;
+            snek_object_t* b_y =b->data.v_vector3.y;
+            snek_object_t* b_z =b->data.v_vector3.z;
+            snek_object_t* result_x = snek_add(a_x,b_x);
+            snek_object_t* result_y = snek_add(a_y,b_y);
+            snek_object_t* result_z = snek_add(a_z,b_z);
+            return new_snek_vector3(result_x,result_y,result_z);
+        }
+        default:
+            return NULL;
+        }
+    }
+    if (a->kind==ARRAY){
+        switch (b->kind){
+        case ARRAY:{
+            size_t a_size = a->data.v_array.size;
+            size_t b_size = b->data.v_array.size;
+            size_t new_size = a_size+b_size;
+            snek_object_t* obj = new_snek_array(new_size);
+            for (size_t i=0;i<a_size;i++){
+                snek_object_t* elem = snek_array_get(a,i);
+                snek_array_set(obj,i,elem);
+            }
+            for (size_t i=0;i<b_size;i++){
+                snek_object_t* elem = snek_array_get(b,i);
+                snek_array_set(obj,a_size+i,elem);
+            }
+            return obj;
+        }
+        default:
+            return NULL;
+        }
+    }
+    return NULL;
+}
 int snek_length(snek_object_t* obj){
     if (obj==NULL){
         return -1;
     }
-    if (obj->kind==INTEGER || obj->kind==FLOAT){
+    switch (obj->kind)
+    {
+    case INTEGER:
         return 1;
-    }
-    if (obj->kind==STRING){
+    case FLOAT:
+        return 1;
+    case STRING:
         return strlen(obj->data.v_string);
-    }
-    if (obj->kind==VECTOR3){
+    case VECTOR3:
         return 3;
-    }
-    if (obj->kind==ARRAY){
+    case ARRAY:
         return obj->data.v_array.size;
-    }
-    return -1;
 
+    default:
+        return -1;
+    }
 }
 
 snek_object_t *new_snek_integer(int value){
