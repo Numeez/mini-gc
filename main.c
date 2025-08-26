@@ -1,133 +1,154 @@
-#include "munit/munit.h"
-#include "snekobject.h"
+#include <stdio.h>
 #include <stdlib.h>
 
-// ---------------------------
-// Tests
-// ---------------------------
+#include "mem.h"        // use your mem_* functions
+#include "munit/munit.h"
+#include "sneknew.h"
+#include "snekobject.h"
+#include "vm.h"
 
-static MunitResult test_integer_refcount(const MunitParameter params[], void* data) {
-    (void) params; (void) data;
+// ----------------------------------------------------
+// test_trace_vector
+// ----------------------------------------------------
+static MunitResult
+test_trace_vector(const MunitParameter params[], void* data) {
+  vm_t *vm = vm_new();
+  frame_t *frame = vm_new_frame(vm);
 
-    snek_object_t* obj = new_snek_integer(42);
-    munit_assert_int(obj->reference_count, ==, 1);
+  snek_object_t *x = new_snek_integer(vm, 5);
+  snek_object_t *y = new_snek_integer(vm, 5);
+  snek_object_t *z = new_snek_integer(vm, 5);
+  snek_object_t *vector = new_snek_vector3(vm, x, y, z);
 
-    refcount_inc(obj);
-    munit_assert_int(obj->reference_count, ==, 2);
+  // nothing is marked
+  munit_assert_false(x->is_marked);
+  munit_assert_false(y->is_marked);
+  munit_assert_false(z->is_marked);
+  munit_assert_false(vector->is_marked);
 
-    refcount_dec(obj);
-    munit_assert_int(obj->reference_count, ==, 1);
+  // after referencing and marking, vector is marked but not contents
+  frame_reference_object(frame, vector);
+  mark(vm);
+  munit_assert_true(vector->is_marked);
+  munit_assert_false(x->is_marked);
+  munit_assert_false(y->is_marked);
+  munit_assert_false(z->is_marked);
 
-    refcount_dec(obj);
-    // obj is freed, cannot check reference_count anymore
+  // after tracing, the contents should be marked
+  trace(vm);
+  munit_assert_true(vector->is_marked);
+  munit_assert_true(x->is_marked);
+  munit_assert_true(y->is_marked);
+  munit_assert_true(z->is_marked);
 
-    return MUNIT_OK;
+  vm_free(vm);
+  munit_assert_true(mem_all_free());
+  return MUNIT_OK;
 }
 
-static MunitResult test_float_refcount(const MunitParameter params[], void* data) {
-    (void) params; (void) data;
+// ----------------------------------------------------
+// test_trace_array
+// ----------------------------------------------------
+// static MunitResult
+// test_trace_array(const MunitParameter params[], void* data) {
+//   vm_t *vm = vm_new();
+//   frame_t *frame = vm_new_frame(vm);
 
-    snek_object_t* obj = new_snek_float(3.14);
-    munit_assert_int(obj->reference_count, ==, 1);
+//   snek_object_t *devs = new_snek_array(vm, 2);
+//   snek_object_t *lane = new_snek_string(vm, "Lane");
+//   snek_object_t *teej = new_snek_string(vm, "Teej");
+//   snek_array_set(devs, 0, lane);
+//   snek_array_set(devs, 1, teej);
 
-    refcount_inc(obj);
-    munit_assert_int(obj->reference_count, ==, 2);
+//   // nothing is marked
+//   munit_assert_false(devs->is_marked);
+//   munit_assert_false(lane->is_marked);
+//   munit_assert_false(teej->is_marked);
 
-    refcount_dec(obj);
-    munit_assert_int(obj->reference_count, ==, 1);
+//   // after referencing and marking, array is marked but not contents
+//   frame_reference_object(frame, devs);
+//   mark(vm);
+//   munit_assert_true(devs->is_marked);
+//   munit_assert_false(lane->is_marked);
+//   munit_assert_false(teej->is_marked);
 
-    refcount_dec(obj);
+//   // after tracing, the contents should be marked
 
-    return MUNIT_OK;
-}
+//   trace(vm);
+//   munit_assert_true(devs->is_marked);
+//   munit_assert_true(lane->is_marked);
+//   munit_assert_true(teej->is_marked);
 
-static MunitResult test_string_refcount(const MunitParameter params[], void* data) {
-    (void) params; (void) data;
+//   vm_free(vm);
+//   munit_assert_true(mem_all_free());
+//   return MUNIT_OK;
+// }
 
-    snek_object_t* obj = new_snek_string("Hello");
-    munit_assert_int(obj->reference_count, ==, 1);
+// ----------------------------------------------------
+// test_trace_nested
+// ----------------------------------------------------
+// static MunitResult
+// test_trace_nested(const MunitParameter params[], void* data) {
+//   vm_t *vm = vm_new();
+//   frame_t *frame = vm_new_frame(vm);
 
-    refcount_inc(obj);
-    munit_assert_int(obj->reference_count, ==, 2);
+//   snek_object_t *bootdevs = new_snek_array(vm, 2);
+//   snek_object_t *lane = new_snek_string(vm, "Lane");
+//   snek_object_t *hunter = new_snek_string(vm, "Hunter");
+//   snek_array_set(bootdevs, 0, lane);
+//   snek_array_set(bootdevs, 1, hunter);
 
-    refcount_dec(obj);
-    munit_assert_int(obj->reference_count, ==, 1);
+//   snek_object_t *terminaldevs = new_snek_array(vm, 4);
+//   snek_object_t *prime = new_snek_string(vm, "Prime");
+//   snek_object_t *teej = new_snek_string(vm, "Teej");
+//   snek_object_t *dax = new_snek_string(vm, "Dax");
+//   snek_object_t *adam = new_snek_string(vm, "Adam");
+//   snek_array_set(terminaldevs, 0, prime);
+//   snek_array_set(terminaldevs, 1, teej);
+//   snek_array_set(terminaldevs, 2, dax);
+//   snek_array_set(terminaldevs, 3, adam);
 
-    refcount_dec(obj);
+//   snek_object_t *alldevs = new_snek_array(vm, 2);
+//   snek_array_set(alldevs, 0, bootdevs);
+//   snek_array_set(alldevs, 1, terminaldevs);
 
-    return MUNIT_OK;
-}
+//   frame_reference_object(frame, alldevs);
+//   mark(vm);
+//   trace(vm);
 
-static MunitResult test_array_refcount(const MunitParameter params[], void* data) {
-    (void) params; (void) data;
+//   munit_assert_true(bootdevs->is_marked);
+//   munit_assert_true(lane->is_marked);
+//   munit_assert_true(hunter->is_marked);
+//   munit_assert_true(terminaldevs->is_marked);
+//   munit_assert_true(prime->is_marked);
+//   munit_assert_true(teej->is_marked);
+//   munit_assert_true(dax->is_marked);
+//   munit_assert_true(adam->is_marked);
+//   munit_assert_true(alldevs->is_marked);
 
-    snek_object_t* a = new_snek_integer(1);
-    snek_object_t* b = new_snek_integer(2);
-    snek_object_t* arr = new_snek_array(2);
+//   vm_free(vm);
+//   munit_assert_true(mem_all_free());
+//   return MUNIT_OK;
+// }
 
-    snek_array_set(arr, 0, a);
-    snek_array_set(arr, 1, b);
-
-    munit_assert_int(a->reference_count, ==, 2);
-    munit_assert_int(b->reference_count, ==, 2);
-
-    refcount_dec(a);
-    munit_assert_int(a->reference_count, ==, 1);
-
-    snek_object_t* c = new_snek_integer(3);
-    snek_array_set(arr, 0, c); // replaces `a`, should decrement `a`
-    munit_assert_int(c->reference_count, ==, 2);
-
-    refcount_dec(b);
-    refcount_dec(c);
-    refcount_dec(arr);
-
-    return MUNIT_OK;
-}
-
-static MunitResult test_vector3_refcount(const MunitParameter params[], void* data) {
-    (void) params; (void) data;
-
-    snek_object_t* x = new_snek_integer(1);
-    snek_object_t* y = new_snek_integer(2);
-    snek_object_t* z = new_snek_integer(3);
-
-    snek_object_t* vec = new_snek_vector3(x, y, z);
-    munit_assert_int(x->reference_count, ==, 2);
-    munit_assert_int(y->reference_count, ==, 2);
-    munit_assert_int(z->reference_count, ==, 2);
-
-    refcount_dec(x);
-    munit_assert_int(x->reference_count, ==, 1);
-
-    refcount_dec(vec); // decrements vector refs
-    munit_assert_int(x->reference_count, ==, 0);
-    munit_assert_int(y->reference_count, ==, 1);
-    munit_assert_int(z->reference_count, ==, 1);
-
-    refcount_dec(y);
-    refcount_dec(z);
-
-    return MUNIT_OK;
-}
-
-// ---------------------------
+// ----------------------------------------------------
 // Test suite
-// ---------------------------
-
+// ----------------------------------------------------
 static MunitTest tests[] = {
-    { "/integer_refcount", test_integer_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-    { "/float_refcount", test_float_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-    { "/string_refcount", test_string_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-    { "/array_refcount", test_array_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-    { "/vector3_refcount", test_vector3_refcount, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-    { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
+  { "/test_trace_vector", test_trace_vector, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+  // { "/test_trace_array",  test_trace_array,  NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+  // { "/test_trace_nested", test_trace_nested, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+  { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
 };
 
 static const MunitSuite suite = {
-    "refcount", tests, NULL, 1, MUNIT_SUITE_OPTION_NONE
+  "/mark-and-sweep", // suite name
+  tests,             // test cases
+  NULL,              // no sub-suites
+  1,                 // iterations
+  MUNIT_SUITE_OPTION_NONE
 };
 
-int main(int argc, char* argv[]) {
-    return munit_suite_main(&suite, NULL, argc, argv);
+int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)]) {
+  return munit_suite_main(&suite, NULL, argc, argv);
 }
