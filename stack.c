@@ -34,6 +34,7 @@ void stack_free(snek_stack_t *stack) {
   }
 
   if (stack->data != NULL) {
+    
     free(stack->data);
   }
 

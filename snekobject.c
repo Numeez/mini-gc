@@ -2,6 +2,7 @@
 
 #include "sneknew.h"
 #include "snekobject.h"
+#include "mem.h"
 
 void snek_object_free(snek_object_t *obj) {
   switch (obj->kind) {

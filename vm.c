@@ -108,9 +108,18 @@ void trace(vm_t *vm) {
 
 }
 
-void trace_blacken_object(stack_t *gray_objects, snek_object_t *obj) {
+void trace_blacken_object(snek_stack_t *gray_objects, snek_object_t *obj) {
     switch (obj->kind)
     {
+    case INTEGER:{
+      break;
+    }
+    case FLOAT:{
+      break;
+    }
+    case STRING:{
+      break;
+    }
     case VECTOR3:{
       trace_mark_object(gray_objects,obj->data.v_vector3.x);
       trace_mark_object(gray_objects,obj->data.v_vector3.y);
@@ -126,7 +135,7 @@ void trace_blacken_object(stack_t *gray_objects, snek_object_t *obj) {
   }
 }
 
-void trace_mark_object(stack_t *gray_objects, snek_object_t *obj) {
+void trace_mark_object(snek_stack_t *gray_objects, snek_object_t *obj) {
     if (obj==NULL ||  obj->is_marked){
       return;
     }

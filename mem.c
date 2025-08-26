@@ -31,7 +31,7 @@ void* mem_realloc(void* ptr, size_t size){
 void* mem_malloc(size_t size){
     void* ptr = malloc(size);
     if (ptr!=NULL){
-        fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
+        // fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
         allocation_count++;
     }  
     return ptr; 
@@ -39,14 +39,14 @@ void* mem_malloc(size_t size){
 
 void mem_free(void* ptr){
     if (ptr!=NULL){
-     fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
+    //  fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
     allocation_count--;
     free(ptr);
     }
 }
 
 bool mem_all_free(){
-    fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
+    // fprintf(stdout, "[mem] allocation_count=%d\n", allocation_count);
     return allocation_count==0;
 }
 

@@ -10,8 +10,9 @@
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
+            "externalConsole": true,   // <- use external console
+            "MIMode": "lldb",
+            "logging": { "engineLogging": true }  // <- optional, for LLDB debug info
         }
     ]
 }
