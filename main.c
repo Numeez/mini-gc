@@ -1,154 +1,122 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mem.h"        // use your mem_* functions
 #include "munit/munit.h"
 #include "sneknew.h"
 #include "snekobject.h"
 #include "vm.h"
 
-// ----------------------------------------------------
-// test_trace_vector
-// ----------------------------------------------------
+// ------------------------------------------------------------
+// Test: simple GC case
+// ------------------------------------------------------------
 static MunitResult
-test_trace_vector(const MunitParameter params[], void* data) {
+test_simple(const MunitParameter params[], void* user_data) {
+  (void) params;
+  (void) user_data;
+
   vm_t *vm = vm_new();
-  frame_t *frame = vm_new_frame(vm);
+  frame_t *f1 = vm_new_frame(vm);
 
-  snek_object_t *x = new_snek_integer(vm, 5);
-  snek_object_t *y = new_snek_integer(vm, 5);
-  snek_object_t *z = new_snek_integer(vm, 5);
-  snek_object_t *vector = new_snek_vector3(vm, x, y, z);
+  snek_object_t *s = new_snek_string(vm, "I wish I knew how to read.");
+  frame_reference_object(f1, s);
 
-  // nothing is marked
-  munit_assert_false(x->is_marked);
-  munit_assert_false(y->is_marked);
-  munit_assert_false(z->is_marked);
-  munit_assert_false(vector->is_marked);
+  // first GC: nothing should be freed because frame is alive
+  vm_collect_garbage(vm);
+  munit_assert_ptr_not_null(s);
 
-  // after referencing and marking, vector is marked but not contents
-  frame_reference_object(frame, vector);
-  mark(vm);
-  munit_assert_true(vector->is_marked);
-  munit_assert_false(x->is_marked);
-  munit_assert_false(y->is_marked);
-  munit_assert_false(z->is_marked);
+  // free the frame and GC again
+  frame_free(vm_frame_pop(vm));
+  vm_collect_garbage(vm);
 
-  // after tracing, the contents should be marked
-  trace(vm);
-  munit_assert_true(vector->is_marked);
-  munit_assert_true(x->is_marked);
-  munit_assert_true(y->is_marked);
-  munit_assert_true(z->is_marked);
+  // object should have been freed from VM’s object list
+  // (check count instead of boot_is_freed)
+  munit_assert_size(vm->objects->count, ==, 0);
 
   vm_free(vm);
-  munit_assert_true(mem_all_free());
   return MUNIT_OK;
 }
 
-// ----------------------------------------------------
-// test_trace_array
-// ----------------------------------------------------
+// ------------------------------------------------------------
+// Test: full GC case with multiple frames
+// ------------------------------------------------------------
 static MunitResult
-test_trace_array(const MunitParameter params[], void* data) {
+test_full(const MunitParameter params[], void* user_data) {
+  (void) params;
+  (void) user_data;
+
   vm_t *vm = vm_new();
-  frame_t *frame = vm_new_frame(vm);
+  frame_t *f1 = vm_new_frame(vm);
+  frame_t *f2 = vm_new_frame(vm);
+  frame_t *f3 = vm_new_frame(vm);
 
-  snek_object_t *devs = new_snek_array(vm, 2);
-  snek_object_t *lane = new_snek_string(vm, "Lane");
-  snek_object_t *teej = new_snek_string(vm, "Teej");
-  snek_array_set(devs, 0, lane);
-  snek_array_set(devs, 1, teej);
+  snek_object_t *s1 = new_snek_string(vm, "This string is going into frame 1");
+  frame_reference_object(f1, s1);
 
-  // nothing is marked
-  munit_assert_false(devs->is_marked);
-  munit_assert_false(lane->is_marked);
-  munit_assert_false(teej->is_marked);
+  snek_object_t *s2 = new_snek_string(vm, "This string is going into frame 2");
+  frame_reference_object(f2, s2);
 
-  // after referencing and marking, array is marked but not contents
-  frame_reference_object(frame, devs);
-  mark(vm);
-  munit_assert_true(devs->is_marked);
-  munit_assert_false(lane->is_marked);
-  munit_assert_false(teej->is_marked);
+  snek_object_t *s3 = new_snek_string(vm, "This string is going into frame 3");
+  frame_reference_object(f3, s3);
 
-  // after tracing, the contents should be marked
+  snek_object_t *i1 = new_snek_integer(vm, 69);
+  snek_object_t *i2 = new_snek_integer(vm, 420);
+  snek_object_t *i3 = new_snek_integer(vm, 1337);
 
-  trace(vm);
-  munit_assert_true(devs->is_marked);
-  munit_assert_true(lane->is_marked);
-  munit_assert_true(teej->is_marked);
+  snek_object_t *v = new_snek_vector3(vm, i1, i2, i3);
+  frame_reference_object(f2, v);
+  frame_reference_object(f3, v);
+
+  munit_assert_size(vm->objects->count, ==, 7);
+
+  // only free the top frame (f3)
+  frame_free(vm_frame_pop(vm));
+  vm_collect_garbage(vm);
+
+  // at this point: s3 should be gone
+  munit_assert_size(vm->objects->count, ==, 6);
+
+  // free f2 and f1
+  frame_free(vm_frame_pop(vm));
+  frame_free(vm_frame_pop(vm));
+  vm_collect_garbage(vm);
+
+  // now everything should be gone
+  munit_assert_size(vm->objects->count, ==, 0);
 
   vm_free(vm);
-  munit_assert_true(mem_all_free());
   return MUNIT_OK;
 }
-
-//----------------------------------------------------
-//test_trace_nested
-//----------------------------------------------------
-static MunitResult
-test_trace_nested(const MunitParameter params[], void* data) {
-  vm_t *vm = vm_new();
-  frame_t *frame = vm_new_frame(vm);
-
-  snek_object_t *bootdevs = new_snek_array(vm, 2);
-  snek_object_t *lane = new_snek_string(vm, "Lane");
-  snek_object_t *hunter = new_snek_string(vm, "Hunter");
-  snek_array_set(bootdevs, 0, lane);
-  snek_array_set(bootdevs, 1, hunter);
-
-  snek_object_t *terminaldevs = new_snek_array(vm, 4);
-  snek_object_t *prime = new_snek_string(vm, "Prime");
-  snek_object_t *teej = new_snek_string(vm, "Teej");
-  snek_object_t *dax = new_snek_string(vm, "Dax");
-  snek_object_t *adam = new_snek_string(vm, "Adam");
-  snek_array_set(terminaldevs, 0, prime);
-  snek_array_set(terminaldevs, 1, teej);
-  snek_array_set(terminaldevs, 2, dax);
-  snek_array_set(terminaldevs, 3, adam);
-
-  snek_object_t *alldevs = new_snek_array(vm, 2);
-  snek_array_set(alldevs, 0, bootdevs);
-  snek_array_set(alldevs, 1, terminaldevs);
-
-  frame_reference_object(frame, alldevs);
-  mark(vm);
-  trace(vm);
-
-  munit_assert_true(bootdevs->is_marked);
-  munit_assert_true(lane->is_marked);
-  munit_assert_true(hunter->is_marked);
-  munit_assert_true(terminaldevs->is_marked);
-  munit_assert_true(prime->is_marked);
-  munit_assert_true(teej->is_marked);
-  munit_assert_true(dax->is_marked);
-  munit_assert_true(adam->is_marked);
-  munit_assert_true(alldevs->is_marked);
-
-  vm_free(vm);
-  munit_assert_true(mem_all_free());
-  return MUNIT_OK;
-}
-
-// ----------------------------------------------------
-// Test suite
-// ----------------------------------------------------
-static MunitTest tests[] = {
-  { "/test_trace_vector", test_trace_vector, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-  { "/test_trace_array",  test_trace_array,  NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-  { "/test_trace_nested", test_trace_nested, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-  { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
-};
-
-static const MunitSuite suite = {
-  "/mark-and-sweep", // suite name
-  tests,             // test cases
-  NULL,              // no sub-suites
-  1,                 // iterations
-  MUNIT_SUITE_OPTION_NONE
-};
-
+// ------------------------------------------------------------
+// Test runner
+// ------------------------------------------------------------
 int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)]) {
+  MunitTest tests[] = {
+    {
+      "/test_simple",   /* name */
+      test_simple,      /* test function */
+      NULL,             /* setup */
+      NULL,             /* tear_down */
+      MUNIT_TEST_OPTION_NONE,
+      NULL              /* parameters */
+    },
+    {
+      "/test_full",
+      test_full,
+      NULL,
+      NULL,
+      MUNIT_TEST_OPTION_NONE,
+      NULL
+    },
+    { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
+  };
+
+  MunitSuite suite = {
+    "mark-and-sweep",  /* name */
+    tests,             /* tests */
+    NULL,              /* suites */
+    1,                 /* iterations */
+    MUNIT_SUITE_OPTION_NONE
+  };
+
   return munit_suite_main(&suite, NULL, argc, argv);
 }

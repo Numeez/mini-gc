@@ -4,6 +4,25 @@
 #include <stdio.h>
 
 
+void vm_collect_garbage(vm_t *vm) {
+    mark(vm);
+    trace(vm);
+    sweep(vm);
+}
+
+void sweep(vm_t *vm) {
+   for (size_t i=0; i< vm->objects->count; i++){
+       snek_object_t* data =  (snek_object_t*)vm->objects->data[i];
+       if (data->is_marked){
+          data->is_marked = false;
+       }else{
+        free(data);
+        vm->objects->data[i] = NULL;
+       }
+   }
+   stack_remove_nulls(vm->objects);
+}
+
 void vm_track_object(vm_t *vm, snek_object_t *obj) {
   if (obj!=NULL){
     stack_push(vm->objects,obj);
@@ -141,4 +160,8 @@ void trace_mark_object(snek_stack_t *gray_objects, snek_object_t *obj) {
     }
     obj->is_marked=true;
     stack_push(gray_objects,obj);
+}
+
+frame_t *vm_frame_pop(vm_t *vm) {
+  return stack_pop(vm->frames);
 }
