@@ -1,3 +1,5 @@
+Mini GC is a lightweight Garbage Collector implementation in C for learning memory management.
+
 # Mini GC
 
 A lightweight **Garbage Collector implementation in C**, built as a learning project to explore and understand memory management techniques at a low level.  
